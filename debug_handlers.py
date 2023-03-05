@@ -1211,19 +1211,17 @@ def invres_input(hashMap, _files=None, _data=None):
 
     if hashMap.get("listener") == "btn_run":
         hashMap.put("RunCV", "ИнвCV")
-    if hashMap.get("listener") == "btn_run_ocr":
-        hashMap.put("RunCV", "ИнвCVOCR")
 
     return hashMap
 
 
-def invres_input_ocr(hashMap, _files=None, _data=None):
-    global cell_id
-
-    if hashMap.get("listener") == "btn_run":
-        hashMap.put("RunCV", "ИнвCV")
-
-    return hashMap
+# def invres_input_ocr(hashMap, _files=None, _data=None):
+#     global cell_id
+#
+#     if hashMap.get("listener") == "btn_run":
+#         hashMap.put("RunCV", "ИнвCV")
+#
+#     return hashMap
 
 
 def invcv_cell_on_start(hashMap, _files=None, _data=None):
@@ -1261,55 +1259,6 @@ def invcv_cell_on_start(hashMap, _files=None, _data=None):
 
     # hashMap.put("object_info_list",json.dumps(info_list,ensure_ascii=False))
     hashMap.put("green_list", ';'.join(green_list))
-
-    return hashMap
-
-
-def invcv_cell_on_new_object_ocr(hashMap, _files=None, _data=None):
-    global cells
-    global cellid
-
-    hashMap.put("vibrate", "")
-
-    cellid = cells.get(hashMap.get("current_object"))
-
-    if not cellid == None:
-
-        # create connection with database
-        conn = None
-        try:
-            conn = sqlite3.connect(DB_PATH_debug)
-        except Error as e:
-            raise ValueError('Нет соединения с базой!')
-
-        cursor = conn.cursor()
-        try:
-            # тут я понял что лажанулся, использовав unique в качестве имени, но было уже поздно
-            cursor.execute(
-                "SELECT SW_Goods.product_number as barcode,SW_Cells.name as cell,SW_Goods.name as nom, ifnull(sum(qty),0) as qty, \"unique\" as un,SW_Goods.id as nom_id  FROM SW_Account LEFT JOIN SW_Goods ON SW_Account.sku=SW_Goods.id LEFT JOIN SW_Cells ON SW_Account.cell=SW_Cells.id WHERE SW_Account.cell = " + str(
-                    cellid) + " GROUP BY SW_Goods.name ,SW_Cells.name HAVING ifnull(sum(qty),0)<>0")
-        except Error as e:
-            raise ValueError(e)
-
-        results = cursor.fetchall()
-
-        yellow_list = []
-        red_list = []
-        info_list = []
-        # используем object_info_list и запрос чтобы хранить заодно нужные поля, они нужны не для отобрадаения а для дальнейшей логики - unique, nom_id
-
-        for link in results:
-            job = {"object": str(link[0]), "info": str(link[2]) + " </n> Остаток: <big>" + str(link[3]) + "</big>",
-                   "unique": link[4], "nom_id": str(link[5])}
-            info_list.append(job)
-            yellow_list.append(link[0])
-
-        conn.close()
-
-        hashMap.put("object_info_list", json.dumps(info_list, ensure_ascii=False))
-        hashMap.put("yellow_list", ';'.join(yellow_list))
-
-        hashMap.put("NextStep", "Товары ячейки")
 
     return hashMap
 
@@ -1380,25 +1329,25 @@ def invcv_goods_on_new_object(hashMap, _files=None, _data=None):
 
     nom_barcode = str(hashMap.get("current_object"))
 
-    if hashMap.containsKey("stop_listener_list"):
+    if hashMap.containsKey("stop_listener_list"):# есть ли stop_listener_list в hashMap
         stop_list = hashMap.get("stop_listener_list").split(";")
-        stop_list.append(nom_barcode)
+        stop_list.append(nom_barcode)# добавить nom_barcode в stop_listener_list
         hashMap.put("stop_listener_list", ";".join(stop_list))
     else:
         hashMap.put("stop_listener_list", nom_barcode)
 
     object_list = json.loads(hashMap.get("object_info_list"))
 
-    try:
+    try:#проходим по object_list пока не найдем объект с баркодом текущего объекта
         nom_record = next(item for item in object_list if str(item["object"]) == str(nom_barcode))
 
     except StopIteration:
         nom_record = None
 
     if not nom_record == None:
-        hashMap.put("nom_id", str(nom_record.get("nom_id")))
+        hashMap.put("nom_id", str(nom_record.get("nom_id")))# Запись номера ID товара
         # hashMap.put("toast","nom_id="+str(hashMap.get("nom_id"))+" inv_id="+str(hashMap.get("inv_id")))
-        if nom_record['unique'] == 1:
+        if nom_record['unique'] == 1:# это уникальный штрихкод???
 
             hashMap.put("vibrate", "")
             hashMap.put("beep", "5")
@@ -1466,7 +1415,7 @@ def invcv_goods_action(hashMap, _files=None, _data=None):
 
         if hashMap.containsKey("yellow_list"):
             yellow_list = hashMap.get("yellow_list").split(";")
-            yellow_list.remove(nom_barcode)
+            yellow_list.remove(nom_barcode) #ValueError: list.remove(x): x not in list
             hashMap.put("yellow_list", ";".join(yellow_list))
 
             # добавляем в базу
