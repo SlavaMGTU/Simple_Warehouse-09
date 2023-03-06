@@ -9,7 +9,10 @@ nom_barcode = '00608940553886'
 nom_record = next(item for item in object_list if str(item["object"]) == str(nom_barcode))
 # item = object_list[0]
 # a = item["object"]
-# if str(item["object"]) == str(nom_barcode):
+if str(nom_barcode) in '00608940553886;00608940553887;00608940553888;00608940553889':
+    b=1
+else:
+    b=2
 #     for item in object_list:
 #         nom_record = next(item in object_list)
 a=1

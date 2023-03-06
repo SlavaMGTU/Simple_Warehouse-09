@@ -1413,7 +1413,7 @@ def invcv_goods_action(hashMap, _files=None, _data=None):
         else:
             hashMap.put("green_list", nom_barcode)
 
-        if hashMap.containsKey("yellow_list"):
+        if hashMap.containsKey("yellow_list") and nom_barcode in hashMap.get("yellow_list") :
             yellow_list = hashMap.get("yellow_list").split(";")
             yellow_list.remove(nom_barcode) #ValueError: list.remove(x): x not in list
             hashMap.put("yellow_list", ";".join(yellow_list))
