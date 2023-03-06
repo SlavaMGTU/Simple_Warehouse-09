@@ -1329,66 +1329,80 @@ def invcv_goods_on_new_object(hashMap, _files=None, _data=None):
 
     nom_barcode = str(hashMap.get("current_object"))
 
-    if hashMap.containsKey("stop_listener_list"):# есть ли stop_listener_list в hashMap
-        stop_list = hashMap.get("stop_listener_list").split(";")
-        stop_list.append(nom_barcode)# добавить nom_barcode в stop_listener_list
-        hashMap.put("stop_listener_list", ";".join(stop_list))
-    else:
-        hashMap.put("stop_listener_list", nom_barcode)
+    if nom_barcode in hashMap.get("yellow_list"):
 
-    object_list = json.loads(hashMap.get("object_info_list"))
+        if hashMap.containsKey("stop_listener_list"):# есть ли stop_listener_list в hashMap
+            stop_list = hashMap.get("stop_listener_list").split(";")
+            stop_list.append(nom_barcode)# добавить nom_barcode в stop_listener_list
+            hashMap.put("stop_listener_list", ";".join(stop_list))
+        else:
+            hashMap.put("stop_listener_list", nom_barcode)
 
-    try:#проходим по object_list пока не найдем объект с баркодом текущего объекта
-        nom_record = next(item for item in object_list if str(item["object"]) == str(nom_barcode))
+        object_list = json.loads(hashMap.get("object_info_list"))
 
-    except StopIteration:
-        nom_record = None
+        try:#проходим по object_list пока не найдем объект с баркодом текущего объекта
+            nom_record = next(item for item in object_list if str(item["object"]) == str(nom_barcode))
 
-    if not nom_record == None:
-        hashMap.put("nom_id", str(nom_record.get("nom_id")))# Запись номера ID товара
-        # hashMap.put("toast","nom_id="+str(hashMap.get("nom_id"))+" inv_id="+str(hashMap.get("inv_id")))
-        if nom_record['unique'] == 1:# это уникальный штрихкод???
+        except StopIteration:
+            nom_record = None
 
-            hashMap.put("vibrate", "")
-            hashMap.put("beep", "5")
-
-            # это уникальный штрихкод - добавляем его в зеленый список сразу и убираем из желтого
-            green_size = 0
-            if hashMap.containsKey("green_list"):
-                green_list = hashMap.get("green_list").split(";")
-                green_list.append(nom_barcode)
-                hashMap.put("green_list", ";".join(green_list))
-
+        if not nom_record == None:
+            hashMap.put("nom_id", str(nom_record.get("nom_id")))# Запись номера ID товара
+            if hashMap.containsKey('write_id_list'):
+                write_list = hashMap.get('write_id_list').split(';')
+                write_list.append(str(nom_record.get('nom_id')))
+                hashMap.put('write_id_list', ';'.join(write_list))
             else:
-                hashMap.put("green_list",
-                            nom_barcode)
+                hashMap.put('write_id_list', str(nom_record.get('nom_id')))
+            # hashMap.put("toast","nom_id="+str(hashMap.get("nom_id"))+" inv_id="+str(hashMap.get("inv_id")))
+            if nom_record['unique'] == 1:# это уникальный штрихкод???
 
-            if hashMap.containsKey("yellow_list"):
-                yellow_list = hashMap.get("yellow_list").split(";")
-                yellow_list.remove(nom_barcode)
-                hashMap.put("yellow_list", ";".join(yellow_list))
+                hashMap.put("vibrate", "")
+                hashMap.put("beep", "5")
 
-                # добавляем в базу - он посчитан
-            with db_session:
-                found.append(int(hashMap.get("nom_id")))
-                inventory = ui_global.SW_Inventory[int(hashMap.get("inv_id"))]
-                r = ui_global.SW_Inventory_line(qty=1, sku=int(hashMap.get("nom_id")), cell=cellid, inventory=inventory)
-                commit()
+                # это уникальный штрихкод - добавляем его в зеленый список сразу и убираем из желтого
+                green_size = 0
+                if hashMap.containsKey("green_list"):
+                    green_list = hashMap.get("green_list").split(";")
+                    green_list.append(nom_barcode)
+                    hashMap.put("green_list", ";".join(green_list))
 
-            green_size += 1
-            invdate = datetime.fromisoformat(str(hashMap.get("inv_date")))
-            hashMap.put("inv", "Инвентаризация " + str(hashMap.get("inv_name")) + " от " + invdate.strftime(
-                "%m.%d.%Y, %H:%M:%S") + "</n> Найдено: <big>" + str(green_size) + "</big>" + " из " + "<big>" + str(
-                yellow_size) + "</big>")
-        else:  # неуникальный штрихкод - просим ввести кол-во
-            hashMap.put("beep", "50")
+                else:
+                    hashMap.put("green_list",
+                                nom_barcode)
 
-            hashMap.put("nom", nom_record.get("info"))
-            hashMap.put("nom_barcode", nom_barcode)
-            hashMap.put("ShowDialogProcess", "Инвентаризация Active CV")
-            hashMap.put("ShowDialog", "ДиалогВводКоличества")
-            hashMap.put("ShowDialogStyle",
-                        json.dumps({"title": "Введите количество факт", "yes": "Подтвердить", "no": "Отмена"}))
+                if hashMap.containsKey("yellow_list"):
+                    yellow_list = hashMap.get("yellow_list").split(";")
+                    yellow_list.remove(nom_barcode)
+                    hashMap.put("yellow_list", ";".join(yellow_list))
+
+                    # добавляем в базу - он посчитан
+                with db_session:
+                    found.append(int(hashMap.get("nom_id")))
+                    inventory = ui_global.SW_Inventory[int(hashMap.get("inv_id"))]
+                    r = ui_global.SW_Inventory_line(qty=1, sku=int(hashMap.get("nom_id")), cell=cellid, inventory=inventory)
+                    commit()
+
+                green_size += 1
+                invdate = datetime.fromisoformat(str(hashMap.get("inv_date")))
+                hashMap.put("inv", "Инвентаризация " + str(hashMap.get("inv_name")) + " от " + invdate.strftime(
+                    "%m.%d.%Y, %H:%M:%S") + "</n> Найдено: <big>" + str(green_size) + "</big>" + " из " + "<big>" + str(
+                    yellow_size) + "</big>")
+            else:  # неуникальный штрихкод - просим ввести кол-во
+                hashMap.put("beep", "50")
+                if hashMap.containsKey('write_list'):  # есть ли write_list в hashMap
+                    write_list = hashMap.get("write_list").split(";")
+                    write_list.append(nom_barcode)  # добавить nom_barcode в write_list
+                    hashMap.put("write_list", ";".join(write_list))
+                else:
+                    hashMap.put("write_list", nom_barcode)
+
+                hashMap.put("nom", nom_record.get("info"))
+                hashMap.put("nom_barcode", nom_barcode)
+                hashMap.put("ShowDialogProcess", "Инвентаризация Active CV")
+                hashMap.put("ShowDialog", "ДиалогВводКоличества")
+                hashMap.put("ShowDialogStyle",
+                            json.dumps({"title": "Введите количество факт", "yes": "Подтвердить", "no": "Отмена"}))
 
     return hashMap
 
@@ -1399,33 +1413,51 @@ def invcv_goods_action(hashMap, _files=None, _data=None):
 
     # hashMap.put("toast",str(hashMap.get("event")))
 
-    if hashMap.get("listener") == "onResultPositive":
+    if hashMap.get("listener") == "onResultPositive":  # в диалоге ввода количества - "Ок"
 
         hashMap.put("vibrate", "")
-        nom_barcode = str(hashMap.get("nom_barcode"))
+
+        if hashMap.containsKey('write_list'):  # есть ли write_list в hashMap
+            write_list = hashMap.get("write_list").split(";")
+            nom_barcode_write = str(write_list[-1])
+            write_list.remove(nom_barcode_write)
+            hashMap.put("write_list", ";".join(write_list))
+
+        else:
+            nom_barcode_write = str(hashMap.get("current_object"))
         # перекрашиваем в зеленый
 
         if hashMap.containsKey("green_list"):
             green_list = hashMap.get("green_list").split(";")
-            green_list.append(nom_barcode)
+            green_list.append(nom_barcode_write)
             hashMap.put("green_list", ";".join(green_list))
 
         else:
-            hashMap.put("green_list", nom_barcode)
+            hashMap.put("green_list", nom_barcode_write)
 
-        if hashMap.containsKey("yellow_list") and nom_barcode in hashMap.get("yellow_list") :
+        if hashMap.containsKey("yellow_list") and nom_barcode_write in hashMap.get("yellow_list"):
             yellow_list = hashMap.get("yellow_list").split(";")
-            yellow_list.remove(nom_barcode) #ValueError: list.remove(x): x not in list
+            yellow_list.remove(nom_barcode_write)  # ValueError: list.remove(x): x not in list
             hashMap.put("yellow_list", ";".join(yellow_list))
+
+        #определяем ID
+        if hashMap.containsKey('write_id_list'):  # есть ли write_id_list в hashMap
+            write_id_list = hashMap.get("write_id_list").split(";")
+            nom_id = str(write_id_list[-1])
+            write_id_list.remove(nom_id)
+            hashMap.put("write_id_list", ";".join(write_id_list))
+
+        else:
+            nom_id = str(hashMap.get('nom_id'))
 
             # добавляем в базу
         if getfloat_if_exist(hashMap, "qty") > 0:
             with db_session:
                 inventory = ui_global.SW_Inventory[int(hashMap.get("inv_id"))]
-                r = ui_global.SW_Inventory_line(qty=getfloat_if_exist(hashMap, "qty"), sku=int(hashMap.get("nom_id")),
+                r = ui_global.SW_Inventory_line(qty=getfloat_if_exist(hashMap, "qty"), sku=int(nom_id),
                                                 cell=cellid, inventory=inventory)
                 commit()
-                found.append(int(hashMap.get("nom_id")))
+                found.append(int(nom_id))
                 green_size += 1
                 invdate = datetime.fromisoformat(str(hashMap.get("inv_date")))
                 hashMap.put("inv", "Инвентаризация " + str(hashMap.get("inv_name")) + " от " + invdate.strftime(
