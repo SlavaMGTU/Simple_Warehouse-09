@@ -925,6 +925,11 @@ def stock_on_create(hashMap, _files=None, _data=None):
                 "name": "qty",
                 "header": "Остаток",
                 "weight": "1"
+            },
+            {
+                "name": "unit",
+                "header": "Ед.Изм",
+                "weight": "1"
             }
         ]
     }
@@ -937,13 +942,14 @@ def stock_on_create(hashMap, _files=None, _data=None):
 
     cursor = conn.cursor()
     cursor.execute(
-        "SELECT SW_Cells.name as cell,SW_Goods.name as nom, ifnull(sum(qty),0) as qty FROM SW_Account LEFT JOIN SW_Goods ON SW_Account.sku=SW_Goods.id LEFT JOIN SW_Cells ON SW_Account.cell=SW_Cells.id GROUP BY SW_Goods.name ,SW_Cells.name HAVING ifnull(sum(qty),0)<>0")
+        '''SELECT SW_Cells.name as cell, SW_Goods.name as nom, ifnull(sum(qty),0) as qty, SW_Goods.unit as unit
+            FROM SW_Account LEFT JOIN SW_Goods ON SW_Account.sku=SW_Goods.id LEFT JOIN SW_Cells ON SW_Account.cell=SW_Cells.id GROUP BY SW_Goods.name ,SW_Cells.name HAVING ifnull(sum(qty),0)<>0''')
 
     results = cursor.fetchall()
 
     rows = []
     for record in results:
-        rows.append({"cell": record[0], "nom": record[1], "qty": record[2]})
+        rows.append({"cell": record[0], "nom": record[1], "qty": record[2], "unit": record[3]})
 
     table['rows'] = rows
     hashMap.put("table", json.dumps(table))
