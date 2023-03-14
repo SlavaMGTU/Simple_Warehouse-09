@@ -4,14 +4,8 @@ from pony.orm import Database, Required, Set, Json, PrimaryKey, Optional
 from pony.orm.core import db_session, select, commit
 import datetime
 
-# db = Database()
-# db.bind(provider='sqlite', filename='//data/data/ru.travelfood.simple_ui/databases/SimpleWMS', create_db=True)
-
-#DB_PATH = 'db.db'  # 'db\\db.db'#new #new2
-# DB_PATH = 'sqlite_dev.db'
-db = Database()  # new
-
-db.bind(provider='sqlite', filename='db.db', create_db=True)  # new #new2filename=DB_PATH,
+db = Database()
+db.bind(provider='sqlite', filename='//data/data/ru.travelfood.simple_ui/databases/SimpleWMS', create_db=True)
 
 
 class SW_Units(db.Entity):
