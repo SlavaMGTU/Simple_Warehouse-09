@@ -10,8 +10,8 @@ import sqlite3  # This is another way to work with SQL
 from sqlite3.dbapi2 import Error
 from datetime import datetime
 from PIL import Image
-# from flask import Flask
-# from flask import request
+#from flask import Flask
+#from flask import request
 # import json
 # from pony.orm import select, db_session, commit
 # import ui_global
@@ -395,12 +395,15 @@ def goods_input(hashMap, _files=None, _data=None):
         hashMap.put("photoGallery", json.dumps([]))  # пустой список под галерею
 
         nom_id = -1
+        hashMap.put("toast", str(nom_id) + " добавить новый товар")  # Time!!!!
         hashMap.put("ShowScreen", "ТоварыЗапись")
 
 
     elif hashMap.get("listener") == "CardsClick":
 
+        hashMap.put("toast", str(nom_id) + " номерID клик на строку таблицы")# Time!!!!
         hashMap, nom_id = open_nom(hashMap, nom_id, hashMap.get("selected_card_key"))
+
 
     elif hashMap.get("listener") == "barcode":
         # hashMap.put("toast",hashMap.get("barcode_input"))
@@ -481,15 +484,16 @@ def save_nom(hashMap):
 
     if nom_id < 0:
 
-        with db_session:
+        with db_session:#создаем новую запись
             r = ui_global.SW_Goods(name=get_if_exist(hashMap, "name"), barcode=get_if_exist(hashMap, "barcode"),
                                    unit=get_if_exist(hashMap, "unit"), group=get_if_exist(hashMap, "group"),
                                    product_number=get_if_exist(hashMap, "product_number"),
                                    price=getfloat_if_exist(hashMap, "price"),
                                    unique=getboolean_if_exist(hashMap, "unique"))
             nom_id = r.id
+            hashMap.put("toast", str(nom_id) +  " создаем новую запись")#time!!!
             commit()
-    else:
+    else:# перезаписываеm старую запись
         with db_session:
 
             r = ui_global.SW_Goods[nom_id]
@@ -505,6 +509,7 @@ def save_nom(hashMap):
 
             j['photo'] = json.loads(hashMap.get("photoGallery"))
             r.pictures = j
+            hashMap.put("toast",  str(nom_id) +  " перезаписываеm старую запись")  # time!!!
 
             commit()
     return hashMap, True
@@ -512,11 +517,12 @@ def save_nom(hashMap):
 
 
 def goods_record_on_start(hashMap, _files=None, _data=None):
+    global nom_id
     hashMap.put("mm_local", "")
     hashMap.put("mm_compression", "70")
     hashMap.put("mm_size", "65")
 
-    hashMap.put("fill_name", json.dumps({"hint": "Введите наименование товара", "default_text": hashMap.get("name")}))
+    hashMap.put("fill_name", json.dumps({"hint": "Введите наименование товара" + str(nom_id), "default_text": hashMap.get("name")}))
     hashMap.put("fill_barcode", json.dumps({"hint": "Введите/отсканируйте штрихкод товара", "default_text": hashMap.get("barcode")}))
     hashMap.put("fill_product_number", json.dumps({"hint": "Введите артикул товара", "default_text": hashMap.get("product_number")}))
     hashMap.put("fill_price", json.dumps({"hint": "Введите цену", "default_text": hashMap.get("price")}))
@@ -547,7 +553,7 @@ def goods_record_input(hashMap, _files=None, _data=None):
     global nom_id
     if hashMap.get("listener") == "btn_save":
         # hashMap.put("toast",str(hashMap.get("unique")))
-
+        hashMap.put("toast", str(nom_id) + ' btn save')# Временная time!!!!
         hashMap, success = save_nom(hashMap)
         if success:
             hashMap.put("ShowScreen", "Добавить товар")
@@ -557,16 +563,19 @@ def goods_record_input(hashMap, _files=None, _data=None):
 
     elif hashMap.get("listener") == "CardsClick":
         hashMap.put("toast", str(hashMap.get("selected_card_key")))
+        hashMap.put("toast", str(nom_id) + ' CardsClick')# Временная time!!!!
 
     elif hashMap.get("listener") == 'ON_BACK_PRESSED':
         hashMap.put("ShowScreen", "Добавить товар")
 
     elif hashMap.get("listener") == 'menu_del':
+        hashMap.put("toast", str(nom_id) + " номерID Удален...")
         with db_session:
             r = ui_global.SW_Goods[nom_id]
             r.delete()
-        hashMap.put("ShowScreen", "Добавить товар")
         hashMap.put("toast", "Удалено...")
+        hashMap.put("ShowScreen", "Добавить товар")
+
 
     elif hashMap.get("listener") == "photo":
 
@@ -1025,7 +1034,7 @@ def stock_input(hashMap, _files=None, _data=None):
         if not is_nom:
             cell = ui_global.SW_Cells.get(barcode=hashMap.get("barcode"))
             if cell == None:
-                hashMap.put("toast", "Штрихкод ни ячейки ни тоара")
+                hashMap.put("toast", "Штрихкод ни ячейки ни товара")
             else:
                 hashMap.put("object", cell.name)
                 hashMap.put("table_object", get_table_by_cell(cell.id))

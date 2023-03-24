@@ -10,15 +10,15 @@ import sqlite3  # This is another way to work with SQL
 from sqlite3.dbapi2 import Error
 from datetime import datetime
 from PIL import Image
-# from flask import Flask
-# from flask import request
+#from flask import Flask
+#from flask import request
 # import json
 # from pony.orm import select, db_session, commit
 # import ui_global
 
 
 unit_id = -1
-nom_id = -1
+_nom_id = -1
 cell_id = -1
 cells = {}
 cellid = None
@@ -349,13 +349,13 @@ def goods_on_start(hashMap, _files=None, _data=None):
     return hashMap
 
 
-def open_nom(hashMap, nom_id, key):
+def open_nom(hashMap, key):#, _nom_id, key):
     jlist = json.loads(hashMap.get("list"))
     goodsarray = jlist["customcards"]['cardsdata']
 
     jrecord = next(item for item in goodsarray if str(item["key"]) == key)
 
-    nom_id = jrecord['key']
+    hashMap.put('_nom_id', str(jrecord['key']))# ввод _nom_id Time!!!
     hashMap.put("name", jrecord['name'])
     hashMap.put("barcode", jrecord['barcode'])
     hashMap.put("unit", jrecord['unit'])
@@ -374,14 +374,14 @@ def open_nom(hashMap, nom_id, key):
         hashMap.put("photoGallery", json.dumps(jg['photo']))
     else:
         hashMap.put("photoGallery", json.dumps([]))
-
+    hashMap.put("toast", hashMap.get('_nom_id') + " номерID клик на строку таблицы")# Time!!!!
     hashMap.put("ShowScreen", "ТоварыЗапись")
 
-    return hashMap, nom_id
+    return hashMap#, _nom_id
 
 
 def goods_input(hashMap, _files=None, _data=None):
-    global nom_id
+    #global _nom_id
 
     if hashMap.get("listener") == "btn_add":
         hashMap.put("name", "")
@@ -394,13 +394,16 @@ def goods_input(hashMap, _files=None, _data=None):
 
         hashMap.put("photoGallery", json.dumps([]))  # пустой список под галерею
 
-        nom_id = -1
+        _nom_id = -1# изменяется _nom_id!!!
+        hashMap.put('_nom_id', str(_nom_id))  # ввод _nom_id Time!!!
+        hashMap.put("toast", str(_nom_id) + " добавить новый товар")  # Time!!!!
         hashMap.put("ShowScreen", "ТоварыЗапись")
 
 
     elif hashMap.get("listener") == "CardsClick":
 
-        hashMap, nom_id = open_nom(hashMap, nom_id, hashMap.get("selected_card_key"))
+        hashMap = open_nom(hashMap, hashMap.get("selected_card_key"))# изменяется переменная
+
 
     elif hashMap.get("listener") == "barcode":
         # hashMap.put("toast",hashMap.get("barcode_input"))
@@ -408,18 +411,18 @@ def goods_input(hashMap, _files=None, _data=None):
         if nom == None:
             hashMap.put("toast", "Товар не найден")
         else:
-            hashMap, nom_id = open_nom(hashMap, nom_id, str(nom.id))
+            hashMap = open_nom(hashMap, str(nom.id))
 
             hashMap.put("speak", nom.name)
 
 
     elif hashMap.get("listener") == "vision":
-        # hashMap.put("toast",hashMap.get("nom_id"))
-        nom = ui_global.SW_Goods.get(id=int(hashMap.get("nom_id")))
+        # hashMap.put("toast",hashMap.get("_nom_id"))
+        nom = ui_global.SW_Goods.get(id=int(hashMap.get("_nom_id")))
         if nom == None:
             hashMap.put("toast", "Товар не найден")
         else:
-            hashMap, nom_id = open_nom(hashMap, nom_id, str(nom.id))
+            hashMap = open_nom(hashMap, str(nom.id))
             hashMap.put("speak", nom.name)
     elif hashMap.get("listener") == 'ON_BACK_PRESSED':
         hashMap.put("ShowScreen", "Меню НСИ")
@@ -462,7 +465,7 @@ def getfloat_if_exist(hashMap, field):
 
 
 def save_nom(hashMap):
-    global nom_id
+    #global _nom_id
     if not hashMap.containsKey("name"):
         hashMap.put("toast", "Не указано наименование")
         return hashMap, False
@@ -479,20 +482,22 @@ def save_nom(hashMap):
             hashMap.put("toast", "Не указана единица")
             return hashMap, False
 
-    if nom_id < 0:
+    if int(hashMap.get('_nom_id')) < 0:  # прочитали _nom_id Time!!!
 
-        with db_session:
+        with db_session:#создаем новую запись
             r = ui_global.SW_Goods(name=get_if_exist(hashMap, "name"), barcode=get_if_exist(hashMap, "barcode"),
                                    unit=get_if_exist(hashMap, "unit"), group=get_if_exist(hashMap, "group"),
                                    product_number=get_if_exist(hashMap, "product_number"),
                                    price=getfloat_if_exist(hashMap, "price"),
                                    unique=getboolean_if_exist(hashMap, "unique"))
-            nom_id = r.id
+            _nom_id = r.id# изменяется _nom_id Time!!!
+            hashMap.put("toast", str(_nom_id) +  " создаем новую запись")#time!!!
+            hashMap.put('_nom_id', str(_nom_id))  # ввод _nom_id Time!!!
             commit()
-    else:
+    else:# перезаписываеm старую запись
         with db_session:
 
-            r = ui_global.SW_Goods[nom_id]
+            r = ui_global.SW_Goods[int(hashMap.get('_nom_id'))]# прочитали _nom_id Time!!!
             r.name = get_if_exist(hashMap, "name")
             r.barcode = get_if_exist(hashMap, "barcode")
             r.unit = get_if_exist(hashMap, "unit")
@@ -505,6 +510,7 @@ def save_nom(hashMap):
 
             j['photo'] = json.loads(hashMap.get("photoGallery"))
             r.pictures = j
+            hashMap.put("toast",  str(int(hashMap.get('_nom_id'))) +  " перезаписываеm старую запись")  # time!!!
 
             commit()
     return hashMap, True
@@ -512,11 +518,12 @@ def save_nom(hashMap):
 
 
 def goods_record_on_start(hashMap, _files=None, _data=None):
+    #global _nom_id
     hashMap.put("mm_local", "")
     hashMap.put("mm_compression", "70")
     hashMap.put("mm_size", "65")
 
-    hashMap.put("fill_name", json.dumps({"hint": "Введите наименование товара", "default_text": hashMap.get("name")}))
+    hashMap.put("fill_name", json.dumps({"hint": "Введите наименование товара" + str(int(hashMap.get('_nom_id'))), "default_text": hashMap.get("name")}))
     hashMap.put("fill_barcode", json.dumps({"hint": "Введите/отсканируйте штрихкод товара", "default_text": hashMap.get("barcode")}))
     hashMap.put("fill_product_number", json.dumps({"hint": "Введите артикул товара", "default_text": hashMap.get("product_number")}))
     hashMap.put("fill_price", json.dumps({"hint": "Введите цену", "default_text": hashMap.get("price")}))
@@ -544,10 +551,10 @@ def goods_record_on_start(hashMap, _files=None, _data=None):
 
 
 def goods_record_input(hashMap, _files=None, _data=None):
-    global nom_id
+    #global _nom_id
     if hashMap.get("listener") == "btn_save":
         # hashMap.put("toast",str(hashMap.get("unique")))
-
+        hashMap.put("toast", str(int(hashMap.get('_nom_id'))) + ' btn save')# Временная time!!!!
         hashMap, success = save_nom(hashMap)
         if success:
             hashMap.put("ShowScreen", "Добавить товар")
@@ -556,17 +563,20 @@ def goods_record_input(hashMap, _files=None, _data=None):
         hashMap.put("barcode", hashMap.get("barcode_nom"))
 
     elif hashMap.get("listener") == "CardsClick":
+        hashMap.put("toast", str(int(hashMap.get('_nom_id'))) + ' CardsClick')# Временная time!!!!
         hashMap.put("toast", str(hashMap.get("selected_card_key")))
 
     elif hashMap.get("listener") == 'ON_BACK_PRESSED':
         hashMap.put("ShowScreen", "Добавить товар")
 
     elif hashMap.get("listener") == 'menu_del':
+        hashMap.put("toast", str(int(hashMap.get('_nom_id'))) + " номерID Удален...")
         with db_session:
-            r = ui_global.SW_Goods[nom_id]
+            r = ui_global.SW_Goods[int(hashMap.get('_nom_id'))]
             r.delete()
+        #hashMap.put("toast", "Удалено...")
         hashMap.put("ShowScreen", "Добавить товар")
-        hashMap.put("toast", "Удалено...")
+
 
     elif hashMap.get("listener") == "photo":
 
@@ -833,19 +843,19 @@ def income_nom_input(hashMap, _files=None, _data=None):
             hashMap.put("toast", "Товар не найден")
         else:
             hashMap.put("nom", nom.name)
-            hashMap.put("nom_id", str(nom.id))
+            hashMap.put("_nom_id", str(nom.id))
             hashMap.put("speak", nom.name)
             hashMap.put("ShowScreen", "Ввод количества")
             hashMap.put("qty", "1")
 
     elif hashMap.get("listener") == "vision":
-        # hashMap.put("toast",hashMap.get("nom_id"))
-        nom = ui_global.SW_Goods.get(id=int(hashMap.get("nom_id")))
+        # hashMap.put("toast",hashMap.get("_nom_id"))
+        nom = ui_global.SW_Goods.get(id=int(hashMap.get("_nom_id")))
         if nom == None:
             hashMap.put("toast", "Товар не найден")
         else:
             hashMap.put("nom", nom.name)
-            hashMap.put("nom_id", str(nom.id))
+            hashMap.put("_nom_id", str(nom.id))
             hashMap.put("speak", nom.name)
             hashMap.put("ShowScreen", "Ввод количества")
             hashMap.put("qty", "1")
@@ -858,7 +868,7 @@ def income_qty_input(hashMap, _files=None, _data=None):
 
         if getfloat_if_exist(hashMap, "qty") > 0:
             with db_session:
-                r = ui_global.SW_Account(qty=getfloat_if_exist(hashMap, "qty"), sku=int(hashMap.get("nom_id")),
+                r = ui_global.SW_Account(qty=getfloat_if_exist(hashMap, "qty"), sku=int(hashMap.get("_nom_id")),
                                          cell=int(hashMap.get("cell_id")))
                 commit()
 
@@ -883,12 +893,12 @@ def outcome_qty_input(hashMap, _files=None, _data=None):
 
         if getfloat_if_exist(hashMap, "qty") > 0:
             with db_session:
-                select_goods = select(g.qty for g in ui_global.SW_Account if g.sku==int(hashMap.get("nom_id")) and g.cell==int(hashMap.get("cell_id")))[:]
+                select_goods = select(g.qty for g in ui_global.SW_Account if g.sku==int(hashMap.get("_nom_id")) and g.cell==int(hashMap.get("cell_id")))[:]
 
                 if sum(select_goods) + (-1 * getfloat_if_exist(hashMap, "qty")) < 0:
                     hashMap.put("toast", "Отгружено больше чем было в наличии!!!")
                 else:
-                    r = ui_global.SW_Account(qty=-1 * getfloat_if_exist(hashMap, "qty"), sku=int(hashMap.get("nom_id")),
+                    r = ui_global.SW_Account(qty=-1 * getfloat_if_exist(hashMap, "qty"), sku=int(hashMap.get("_nom_id")),
                                              cell=int(hashMap.get("cell_id")))
                     commit()
 
@@ -1025,7 +1035,7 @@ def stock_input(hashMap, _files=None, _data=None):
         if not is_nom:
             cell = ui_global.SW_Cells.get(barcode=hashMap.get("barcode"))
             if cell == None:
-                hashMap.put("toast", "Штрихкод ни ячейки ни тоара")
+                hashMap.put("toast", "Штрихкод ни ячейки ни товара")
             else:
                 hashMap.put("object", cell.name)
                 hashMap.put("table_object", get_table_by_cell(cell.id))
@@ -1269,7 +1279,7 @@ def invcv_cell_on_new_object(hashMap, _files=None, _data=None):
         try:
             # тут я понял что лажанулся, использовав unique в качестве имени, но было уже поздно
             cursor.execute(
-                "SELECT SW_Goods.barcode as barcode,SW_Cells.name as cell,SW_Goods.name as nom, ifnull(sum(qty),0) as qty, \"unique\" as un,SW_Goods.id as nom_id  FROM SW_Account LEFT JOIN SW_Goods ON SW_Account.sku=SW_Goods.id LEFT JOIN SW_Cells ON SW_Account.cell=SW_Cells.id WHERE SW_Account.cell = " + str(
+                "SELECT SW_Goods.barcode as barcode,SW_Cells.name as cell,SW_Goods.name as nom, ifnull(sum(qty),0) as qty, \"unique\" as un,SW_Goods.id as _nom_id  FROM SW_Account LEFT JOIN SW_Goods ON SW_Account.sku=SW_Goods.id LEFT JOIN SW_Cells ON SW_Account.cell=SW_Cells.id WHERE SW_Account.cell = " + str(
                     cellid) + " GROUP BY SW_Goods.name ,SW_Cells.name HAVING ifnull(sum(qty),0)<>0")
         except Error as e:
             raise ValueError(e)
@@ -1283,10 +1293,10 @@ def invcv_cell_on_new_object(hashMap, _files=None, _data=None):
         info_list = []
         yellow_size = 0
         green_size = 0
-        # используем object_info_list и запрос чтобы хранить заодно нужные поля, они нужны не для отобрадаения а для дальнейшей логики - unique, nom_id
+        # используем object_info_list и запрос чтобы хранить заодно нужные поля, они нужны не для отобрадаения а для дальнейшей логики - unique, _nom_id
         for link in results:
             job = {"object": str(link[0]), "info": str(link[2]) + " </n> Остаток: <big>" + str(link[3]) + "</big>",
-                   "unique": link[4], "nom_id": str(link[5])}
+                   "unique": link[4], "_nom_id": str(link[5])}
             info_list.append(job)
             yellow_list.append(link[0])
             yellow_size += 1
@@ -1329,14 +1339,14 @@ def invcv_goods_on_new_object(hashMap, _files=None, _data=None):
         nom_record = None
 
     if not nom_record == None:
-        hashMap.put("nom_id", str(nom_record.get("nom_id")))# Запись номера ID товара
+        hashMap.put("_nom_id", str(nom_record.get("_nom_id")))# Запись номера ID товара
         if hashMap.containsKey('write_id_list'):
             write_list = hashMap.get('write_id_list').split(';')
-            write_list.append(str(nom_record.get('nom_id')))
+            write_list.append(str(nom_record.get('_nom_id')))
             hashMap.put('write_id_list', ';'.join(write_list))
         else:
-            hashMap.put('write_id_list', str(nom_record.get('nom_id')))
-        # hashMap.put("toast","nom_id="+str(hashMap.get("nom_id"))+" inv_id="+str(hashMap.get("inv_id")))
+            hashMap.put('write_id_list', str(nom_record.get('_nom_id')))
+        # hashMap.put("toast","_nom_id="+str(hashMap.get("_nom_id"))+" inv_id="+str(hashMap.get("inv_id")))
         if nom_record['unique'] == 1:# это уникальный штрихкод???
 
             hashMap.put("vibrate", "")
@@ -1360,9 +1370,9 @@ def invcv_goods_on_new_object(hashMap, _files=None, _data=None):
 
                 # добавляем в базу - он посчитан
             with db_session:
-                found.append(int(hashMap.get("nom_id")))
+                found.append(int(hashMap.get("_nom_id")))
                 inventory = ui_global.SW_Inventory[int(hashMap.get("inv_id"))]
-                r = ui_global.SW_Inventory_line(qty=1, sku=int(hashMap.get("nom_id")), cell=cellid, inventory=inventory)
+                r = ui_global.SW_Inventory_line(qty=1, sku=int(hashMap.get("_nom_id")), cell=cellid, inventory=inventory)
                 commit()
 
             green_size += 1
@@ -1425,21 +1435,21 @@ def invcv_goods_action(hashMap, _files=None, _data=None):
         #определяем ID
         if hashMap.containsKey('write_id_list'):  # есть ли write_id_list в hashMap
             write_id_list = hashMap.get("write_id_list").split(";")
-            nom_id = str(write_id_list[-1])
-            write_id_list.remove(nom_id)
+            _nom_id = str(write_id_list[-1])
+            write_id_list.remove(_nom_id)
             hashMap.put("write_id_list", ";".join(write_id_list))
 
         else:
-            nom_id = str(hashMap.get('nom_id'))
+            _nom_id = str(hashMap.get('_nom_id'))
 
             # добавляем в базу
         if getfloat_if_exist(hashMap, "qty") > 0:
             with db_session:
                 inventory = ui_global.SW_Inventory[int(hashMap.get("inv_id"))]
-                r = ui_global.SW_Inventory_line(qty=getfloat_if_exist(hashMap, "qty"), sku=int(nom_id),
+                r = ui_global.SW_Inventory_line(qty=getfloat_if_exist(hashMap, "qty"), sku=int(_nom_id),
                                                 cell=cellid, inventory=inventory)
                 commit()
-                found.append(int(nom_id))
+                found.append(int(_nom_id))
                 green_size += 1
                 invdate = datetime.fromisoformat(str(hashMap.get("inv_date")))
                 hashMap.put("inv", "Инвентаризация " + str(hashMap.get("inv_name")) + " от " + invdate.strftime(
