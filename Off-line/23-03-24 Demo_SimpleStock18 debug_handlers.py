@@ -1,34 +1,35 @@
-from unicodedata import name
-
-import ui_global
-from pony.orm.core import db_session
-from pony import orm
-from pony.orm import Database, Required, Set, select, commit
-import json
 import os
 import sqlite3  # This is another way to work with SQL
 from sqlite3.dbapi2 import Error
 from datetime import datetime
 from PIL import Image
-#from flask import Flask
-#from flask import request
-# import json
-# from pony.orm import select, db_session, commit
-# import ui_global
+from flask import Flask
+from flask import request
+import json
+from pony.orm import select, db_session, commit
+import ui_global
 
+
+app = Flask(__name__)
+
+
+# -BEGIN CUSTOM HANDLERS
+
+DB_PATH_debug = 'db.db'    #DB_PATH = 'db.db' #new2 замена переменной
 
 unit_id = -1
 _nom_id = -1
 _cell_id = -1
-_cells = {}
+cells = {}
 _cellid = None
-#found = []
-_green_size = 0
-_yellow_size = 0
+found = []
+green_size = 0
+yellow_size = 0
 
 
+#func = method.replace('_', '', 1)
 
-def init_on_start(hashMap, _files=None, _data=None):
+def init_on_start():#hashMap, _files=None, _data=None):
     ui_global.init()
     return hashMap
 
@@ -82,7 +83,7 @@ def get_table_by_cell(id):
 
     conn = None
     try:
-        conn = sqlite3.connect('//data/data/ru.travelfood.simple_ui/databases/SimpleWMS')
+        conn = sqlite3.connect(DB_PATH_debug)
     except Error as e:
         raise ValueError('Нет соединения с базой!')
 
@@ -120,11 +121,11 @@ def units_on_start(hashMap, _files=None, _data=None):
         ]
     }
     # work with SQL via Pony ORM
-
-    query = select(c for c in ui_global.SW_Units)
-    rows = []
-    for record in query:
-        rows.append({"name": record.name, "id": record.id})
+    with db_session:# Заменил!!!
+        query = select(c for c in ui_global.SW_Units)
+        rows = []
+        for record in query:
+            rows.append({"name": record.name, "id": record.id})
 
     table['rows'] = rows
     hashMap.put("list", json.dumps(table))
@@ -188,11 +189,11 @@ def groups_on_start(hashMap, _files=None, _data=None):
         ]
     }
     # work with SQL via Pony ORM
-
-    query = select(c for c in ui_global.SW_Groups)
-    rows = []
-    for record in query:
-        rows.append({"name": record.name, "id": record.id})
+    with db_session:# Заменил!!!
+        query = select(c for c in ui_global.SW_Groups)
+        rows = []
+        for record in query:
+            rows.append({"name": record.name, "id": record.id})
 
     table['rows'] = rows
     hashMap.put("list", json.dumps(table))
@@ -324,29 +325,29 @@ def goods_on_start(hashMap, _files=None, _data=None):
     }
 
     # _files = json.loads(hashMap.get("_files"))
+    with db_session:# Заменил!!!
+        query = select(c for c in ui_global.SW_Goods)
+        list["customcards"]["cardsdata"] = []
 
-    query = select(c for c in ui_global.SW_Goods)
-    list["customcards"]["cardsdata"] = []
+        for record in query:
 
-    for record in query:
+            pic = ""
+            if 'photo' in record.pictures:
 
-        pic = ""
-        if 'photo' in record.pictures:
+                p = record.pictures['photo']
 
-            p = record.pictures['photo']
+                if len(p) > 0:
 
-            if len(p) > 0:
+                    for jf in _files:# находим путь к файлу по идентификатору
+                        if jf['id'] == p[0]:
+                            if os.path.exists(jf['path']):
+                                pic = "~" + jf['path']
+                            break
 
-                for jf in _files:# находим путь к файлу по идентификатору
-                    if jf['id'] == p[0]:
-                        if os.path.exists(jf['path']):
-                            pic = "~" + jf['path']
-                        break
-
-        list["customcards"]["cardsdata"].append(
-            {"name": record.name, "key": record.id, "product_number": str(record.product_number),
-             "barcode": str(record.barcode), "unit": str(record.unit), "skugroup": str(record.group),
-             "price": record.price, "unique": record.unique, "pictures": json.dumps(record.pictures), "pic": pic})
+            list["customcards"]["cardsdata"].append(
+                {"name": record.name, "key": record.id, "product_number": str(record.product_number),
+                 "barcode": str(record.barcode), "unit": str(record.unit), "skugroup": str(record.group),
+                 "price": record.price, "unique": record.unique, "pictures": json.dumps(record.pictures), "pic": pic})
     hashMap.put("list", json.dumps(list))
 
     return hashMap
@@ -408,25 +409,25 @@ def goods_input(hashMap, _files=None, _data=None):
 
     elif hashMap.get("listener") == "barcode":
         # hashMap.put("toast",hashMap.get("barcode_input"))
+        with db_session:  # Заменил!!!
+            nom = ui_global.SW_Goods.get(barcode=hashMap.get("barcode_search"))
+            if nom == None:
+                hashMap.put("toast", "Товар не найден")
+            else:
+                hashMap = open_nom(hashMap, str(nom.id))
 
-        nom = ui_global.SW_Goods.get(barcode=hashMap.get("barcode_search"))
-        if nom == None:
-            hashMap.put("toast", "Товар не найден")
-        else:
-            hashMap = open_nom(hashMap, str(nom.id))
-
-            hashMap.put("speak", nom.name)
+                hashMap.put("speak", nom.name)
 
 
     elif hashMap.get("listener") == "vision":
         # hashMap.put("toast",hashMap.get("_nom_id"))
-
-        nom = ui_global.SW_Goods.get(id=int(hashMap.get("_nom_id")))
-        if nom == None:
-            hashMap.put("toast", "Товар не найден")
-        else:
-            hashMap = open_nom(hashMap, str(nom.id))
-            hashMap.put("speak", nom.name)
+        with db_session:  # Заменил!!!
+            nom = ui_global.SW_Goods.get(id=int(hashMap.get("_nom_id")))
+            if nom == None:
+                hashMap.put("toast", "Товар не найден")
+            else:
+                hashMap = open_nom(hashMap, str(nom.id))
+                hashMap.put("speak", nom.name)
     elif hashMap.get("listener") == 'ON_BACK_PRESSED':
         hashMap.put("ShowScreen", "Меню НСИ")
 
@@ -532,22 +533,22 @@ def goods_record_on_start(hashMap, _files=None, _data=None):
     units = []
     units.append("<Выберите ед-цу измерения ...>")
 
+    with db_session:# Заменил!!!
+        query = select(c for c in ui_global.SW_Units)
+        for record in query:
+            units.append(record.name)
 
-    query = select(c for c in ui_global.SW_Units)
-    for record in query:
-        units.append(record.name)
+        hashMap.put("units", ";".join(units))
 
-    hashMap.put("units", ";".join(units))
+        groups = []
+        groups.append("<Выберите группу товаров ...>")
+        query = select(c for c in ui_global.SW_Groups)
+        for record in query:
+            groups.append(record.name)
 
-    groups = []
-    groups.append("<Выберите группу товаров ...>")
-    query = select(c for c in ui_global.SW_Groups)
-    for record in query:
-        groups.append(record.name)
+        hashMap.put("groups", ";".join(groups))
 
-    hashMap.put("groups", ";".join(groups))
-
-    # hashMap.put("toast",hashMap.get("photoGallery"))
+        # hashMap.put("toast",hashMap.get("photoGallery"))
 
     return hashMap
 
@@ -641,13 +642,13 @@ def cells_on_start(hashMap, _files=None, _data=None):
     }
     }
 
+    with db_session:# Заменил!!!
+        query = select(c for c in ui_global.SW_Cells)
+        list["customcards"]["cardsdata"] = []
 
-    query = select(c for c in ui_global.SW_Cells)
-    list["customcards"]["cardsdata"] = []
-
-    for record in query:
-        list["customcards"]["cardsdata"].append({"name": record.name, "key": record.id, "barcode": str(record.barcode)})
-    hashMap.put("list", json.dumps(list))
+        for record in query:
+            list["customcards"]["cardsdata"].append({"name": record.name, "key": record.id, "barcode": str(record.barcode)})
+        hashMap.put("list", json.dumps(list))
 
     return hashMap
 
@@ -773,10 +774,10 @@ def income_cell_on_start(hashMap, _files=None, _data=None):
 
     cells = []
     cells.append("<выберите ячейку...>")
-
-    query = select(c for c in ui_global.SW_Cells)
-    for record in query:
-        cells.append(record.name)
+    with db_session:# Заменил!!!
+        query = select(c for c in ui_global.SW_Cells)
+        for record in query:
+            cells.append(record.name)
 
     hashMap.put("cells", ";".join(cells))
 
@@ -800,8 +801,8 @@ def income_cell_on_input(hashMap, _files=None, _data=None):
         hashMap.put("ShowScreen", "Выбор товара")
 
     elif hashMap.get("listener") == "barcode":
-
-        cell = ui_global.SW_Cells.get(barcode=hashMap.get("barcode_cell"))
+        with db_session:  # Заменил!!!
+            cell = ui_global.SW_Cells.get(barcode=hashMap.get("barcode_cell"))
         if cell == None:
             hashMap.put("toast", "Ячейка не найдена")
         else:
@@ -811,8 +812,8 @@ def income_cell_on_input(hashMap, _files=None, _data=None):
             hashMap.put("ShowScreen", "Выбор товара")
 
     elif hashMap.get("listener") == 'cell':
-
-        cell = ui_global.SW_Cells.get(name=hashMap.get("cell"))
+        with db_session:  # Заменил!!!
+            cell = ui_global.SW_Cells.get(name=hashMap.get("cell"))
         if cell == None:
             hashMap.put("toast", "Ячейка не найдена")
         else:
@@ -841,8 +842,8 @@ def income_nom_input(hashMap, _files=None, _data=None):
     elif hashMap.get("listener") == "BACK_BUTTON":
         hashMap.put("ShowScreen", "Выбор ячейки")
     elif hashMap.get("listener") == "barcode":
-
-        nom = ui_global.SW_Goods.get(barcode=hashMap.get("barcode"))
+        with db_session:  # Заменил!!!
+            nom = ui_global.SW_Goods.get(barcode=hashMap.get("barcode"))
         if nom == None:
             hashMap.put("toast", "Товар не найден")
         else:
@@ -853,9 +854,9 @@ def income_nom_input(hashMap, _files=None, _data=None):
             hashMap.put("qty", "1")
 
     elif hashMap.get("listener") == "vision":
-        # hashMap.put("toast",hashMap.get("_nom_id"))
-
-        nom = ui_global.SW_Goods.get(id=int(hashMap.get("_nom_id")))
+        # hashMap.put("toast",hashMap.get("nom_id"))
+        with db_session:  # Заменил!!!
+            nom = ui_global.SW_Goods.get(id=int(hashMap.get("_nom_id")))
         if nom == None:
             hashMap.put("toast", "Товар не найден")
         else:
@@ -953,20 +954,20 @@ def stock_on_create(hashMap, _files=None, _data=None):
 
     conn = None
     try:
-        conn = sqlite3.connect('//data/data/ru.travelfood.simple_ui/databases/SimpleWMS')
+        conn = sqlite3.connect(DB_PATH_debug)
     except Error as e:
         raise ValueError('Нет соединения с базой!')
-
-    cursor = conn.cursor()
-    cursor.execute(
-        '''SELECT SW_Cells.name as cell, SW_Goods.name as nom, ifnull(sum(qty),0) as qty, SW_Goods.unit as unit
+    with db_session:  # Заменил!!!
+        cursor = conn.cursor()
+        cursor.execute(
+            '''SELECT SW_Cells.name as cell, SW_Goods.name as nom, ifnull(sum(qty),0) as qty, SW_Goods.unit as unit
             FROM SW_Account LEFT JOIN SW_Goods ON SW_Account.sku=SW_Goods.id LEFT JOIN SW_Cells ON SW_Account.cell=SW_Cells.id GROUP BY SW_Goods.name ,SW_Cells.name HAVING ifnull(sum(qty),0)<>0''')
 
-    results = cursor.fetchall()
+        results = cursor.fetchall()
 
-    rows = []
-    for record in results:
-        rows.append({"cell": record[0], "nom": record[1], "qty": record[2], "unit": record[3]})
+        rows = []
+        for record in results:
+            rows.append({"cell": record[0], "nom": record[1], "qty": record[2], "unit": record[3]})
 
     table['rows'] = rows
     hashMap.put("table", json.dumps(table))
@@ -1001,7 +1002,7 @@ def get_table_by_nom(id):
 
     conn = None
     try:
-        conn = sqlite3.connect('//data/data/ru.travelfood.simple_ui/databases/SimpleWMS')
+        conn = sqlite3.connect(DB_PATH_debug)
     except Error as e:
         raise ValueError('Нет соединения с базой!')
 
@@ -1023,8 +1024,8 @@ def get_table_by_nom(id):
 
 def stock_input(hashMap, _files=None, _data=None):
     if hashMap.get("listener") == "barcode":
-
-        nom = ui_global.SW_Goods.get(barcode=hashMap.get("barcode"))
+        with db_session:  # Заменил!!!
+            nom = ui_global.SW_Goods.get(barcode=hashMap.get("barcode"))
         is_nom = False
 
         object = ""
@@ -1038,8 +1039,8 @@ def stock_input(hashMap, _files=None, _data=None):
             hashMap.put("ShowScreen", "Остатки по объекту")
 
         if not is_nom:
-
-            cell = ui_global.SW_Cells.get(barcode=hashMap.get("barcode"))
+            with db_session:  # Заменил!!!
+                cell = ui_global.SW_Cells.get(barcode=hashMap.get("barcode"))
             if cell == None:
                 hashMap.put("toast", "Штрихкод ни ячейки ни товара")
             else:
@@ -1093,14 +1094,14 @@ def inventory_on_start(hashMap, _files=None, _data=None):#Экран: Докум
     }
     }
 
+    with db_session:# Заменил!!!
+        query = select(c for c in ui_global.SW_Inventory)
+        list["customcards"]["cardsdata"] = []
 
-    query = select(c for c in ui_global.SW_Inventory)
-    list["customcards"]["cardsdata"] = []
-
-    for record in query:
-        list["customcards"]["cardsdata"].append(
-            {"descr": record.description, "key": record.id, "date": str(record.created_at)})
-    hashMap.put("inventory", json.dumps(list))
+        for record in query:
+            list["customcards"]["cardsdata"].append(
+                {"descr": record.description, "key": record.id, "date": str(record.created_at)})
+        hashMap.put("inventory", json.dumps(list))
 
     return hashMap
 
@@ -1183,17 +1184,18 @@ def invres_on_start(hashMap, _files=None, _data=None):
 
     conn = None
     try:
-        conn = sqlite3.connect('//data/data/ru.travelfood.simple_ui/databases/SimpleWMS')
+        conn = sqlite3.connect(DB_PATH_debug)
     except Error as e:
         raise ValueError('Нет соединения с базой!')
 
     cursor = conn.cursor()
     cursor.execute(
-        "select T.cell,T.nom,max(T.qtyplan) as qtyplan, ifnull(sum(F.qty),0) as qtyfact FROM (SELECT SW_Cells.name as cell,SW_Goods.name as nom, ifnull(sum(SW_Account.qty),0) as qtyplan,SW_Account.sku as skuid, SW_Account.cell as cellid FROM SW_Account LEFT JOIN SW_Goods ON SW_Account.sku=SW_Goods.id LEFT JOIN SW_Cells ON SW_Account.cell=SW_Cells.id   GROUP BY SW_Goods.name ,SW_Cells.name, SW_Account.cell, SW_Account.sku HAVING ifnull(sum(SW_Account.qty),0)<>0) as T LEFT JOIN SW_Inventory_line AS F ON T.cellid=F.cell AND T.skuid=F .sku and F .inventory=" + hashMap.get(
-            "inv_id") + " GROUP BY T.cell,T.nom")
+        "select T.cell,T.nom,max(T.qtyplan) as qtyplan, ifnull(sum(F.qty),0) as qtyfact FROM (SELECT SW_Cells.name as cell,SW_Goods.name as nom, ifnull(sum(SW_Account.qty),0) as qtyplan,SW_Account.sku as skuid, SW_Account.cell as _cellid FROM SW_Account LEFT JOIN SW_Goods ON SW_Account.sku=SW_Goods.id LEFT JOIN SW_Cells ON SW_Account.cell=SW_Cells.id   GROUP BY SW_Goods.name ,SW_Cells.name, SW_Account.cell, SW_Account.sku HAVING ifnull(sum(SW_Account.qty),0)<>0) as T LEFT JOIN SW_Inventory_line AS F ON T._cellid=F.cell AND T.skuid=F .sku and F .inventory=" + hashMap.get(
+            "inv_id") + " GROUP BY T.cell,T.nom")# тут _cellid (2шт) Time!!!
 
     results = cursor.fetchall()
 
+    hashMap.put('_cellid', str(_cellid))  # ввод _cellid Time!!!
     rows = []
     colorcells = []
     row = 0
@@ -1226,11 +1228,11 @@ def invres_input(hashMap, _files=None, _data=None):
 
 
 def invcv_cell_on_start(hashMap, _files=None, _data=None):
-    #global cells
-    #global cellid
+    global cells
+    #global _cellid
 
-    # _cellid = None # it's not necessary???
-    # hashMap.put('_cellid', str(_cellid))  # ввод _cellid Time!!!
+    _cellid = None
+    hashMap.put('_cellid', str(_cellid))  # ввод _cellid Time!!!
 
     if hashMap.containsKey("stop_listener_list"):
         hashMap.remove("stop_listener_list")
@@ -1238,7 +1240,7 @@ def invcv_cell_on_start(hashMap, _files=None, _data=None):
     # create connection with database
     conn = None
     try:
-        conn = sqlite3.connect('//data/data/ru.travelfood.simple_ui/databases/SimpleWMS')
+        conn = sqlite3.connect(DB_PATH_debug)# было - заменил('//data/data/ru.travelfood.simple_ui/databases/SimpleWMS')
     except Error as e:
         raise ValueError('Нет соединения с базой!')
 
@@ -1250,51 +1252,37 @@ def invcv_cell_on_start(hashMap, _files=None, _data=None):
     green_list = []
     red_list = []
     info_list = []
-    _cells = {}
+    cells = {}
     for link in results:
         # job = {"object":str(link[0]),"info":str(link[1])+" </n> Остаток: <big>"+str(link[2])+"</big>"}
         # info_list.append(job)
         green_list.append(link[0])
-        _cells[link[0]] = link[1]
+        cells[link[0]] = link[1]
 
     conn.close()
-    hashMap.put("_cells", json.dumps(_cells, ensure_ascii=False))# time!!!
-    hashMap.put("toast", str(hashMap.get('_cells')) +' line1263')  # time!!!
+
     # hashMap.put("object_info_list",json.dumps(info_list,ensure_ascii=False))
     hashMap.put("green_list", ';'.join(green_list))
-    hashMap.put("toast", str(hashMap.get('green_list')) +' line1265')  # time!!!
-    hashMap.put("toast", str(hashMap.get('yellow_list')) + ' line1266')  # time!!!
 
     return hashMap
 
 
 def invcv_cell_on_new_object(hashMap, _files=None, _data=None):
-    #global cells
-    #global cellid
-    #global green_size, yellow_size
-
-    if not hashMap.get('_green_size')== None:
-        _green_size = int(hashMap.get('_green_size'))  # прочитали _green_size Time!!!
-    else:
-        _green_size = 0
-
-    if not hashMap.get('_yellow_size') == None:
-        _yellow_size = int(hashMap.get('_yellow_size'))  # прочитали _yellow_size Time!!!
-    else:
-        _yellow_size = 0
+    global cells
+    #global _cellid
+    global green_size, yellow_size
 
     hashMap.put("vibrate", "")
-    _cells = json.loads(hashMap.get("_cells"))
-    _cellid = _cells.get(hashMap.get("current_object"))#enter error!!! Time!!!
+
+    _cellid = cells.get(hashMap.get("current_object"))
     hashMap.put('_cellid', str(_cellid))  # ввод _cellid Time!!!
-    hashMap.put("toast", str(hashMap.get("_cellid")) + ' line1280')  # Time!!!
 
     if not _cellid == None:
 
         # create connection with database
         conn = None
         try:
-            conn = sqlite3.connect('//data/data/ru.travelfood.simple_ui/databases/SimpleWMS')
+            conn = sqlite3.connect(DB_PATH_debug)
         except Error as e:
             raise ValueError('Нет соединения с базой!')
 
@@ -1302,67 +1290,51 @@ def invcv_cell_on_new_object(hashMap, _files=None, _data=None):
         try:
             # тут я понял что лажанулся, использовав unique в качестве имени, но было уже поздно
             cursor.execute(
-                "SELECT SW_Goods.barcode as barcode,SW_Cells.name as cell,SW_Goods.name as nom, ifnull(sum(qty),0) as qty, \"unique\" as un,SW_Goods.id as _nom_id  FROM SW_Account LEFT JOIN SW_Goods ON SW_Account.sku=SW_Goods.id LEFT JOIN SW_Cells ON SW_Account.cell=SW_Cells.id WHERE SW_Account.cell = " + str(
-                    _cellid) + " GROUP BY SW_Goods.name ,SW_Cells.name HAVING ifnull(sum(qty),0)<>0")
+                "SELECT SW_Goods.barcode as barcode,SW_Cells.name as cell,SW_Goods.name as nom, ifnull(sum(qty),0) as qty, \"unique\" as un,SW_Goods.id as _nom_id  FROM SW_Account LEFT JOIN SW_Goods ON SW_Account.sku=SW_Goods.id LEFT JOIN SW_Cells ON SW_Account.cell=SW_Cells.id WHERE SW_Account.cell = " +
+                                        str(_cellid) + " GROUP BY SW_Goods.name ,SW_Cells.name HAVING ifnull(sum(qty),0)<>0")# НЕ МЕНЯЛ!!! тут _cellid (1шт) Time!!!
         except Error as e:
             raise ValueError(e)
 
         results = cursor.fetchall()
 
-        #found = []
+        found = []
 
         yellow_list = []
         red_list = []
         info_list = []
-        _yellow_size = 0
-        _green_size = 0
+        yellow_size = 0
+        green_size = 0
         # используем object_info_list и запрос чтобы хранить заодно нужные поля, они нужны не для отобрадаения а для дальнейшей логики - unique, _nom_id
         for link in results:
             job = {"object": str(link[0]), "info": str(link[2]) + " </n> Остаток: <big>" + str(link[3]) + "</big>",
                    "unique": link[4], "_nom_id": str(link[5])}
             info_list.append(job)
             yellow_list.append(link[0])
-            _yellow_size += 1
+            yellow_size += 1
 
         conn.close()
 
         hashMap.put("object_info_list", json.dumps(info_list, ensure_ascii=False))
-
-        if not yellow_list == None:
-            hashMap.put("yellow_list", ';'.join(yellow_list))
-
-        #hashMap.put("toast", hashMap.get('yellow_list')+' line1324')# before error Time!!!
+        hashMap.put("yellow_list", ';'.join(yellow_list))
 
         invdate = datetime.fromisoformat(str(hashMap.get("inv_date")))
         hashMap.put("inv", "Инвентаризация " + str(hashMap.get("inv_name")) + " от " + invdate.strftime(
-            "%m.%d.%Y, %H:%M:%S") + "</n> Найдено: <big>" + str(_green_size) + "</big>" + " из " + "<big>" + str(
-            _yellow_size) + "</big>")
+            "%m.%d.%Y, %H:%M:%S") + "</n> Найдено: <big>" + str(green_size) + "</big>" + " из " + "<big>" + str(
+            yellow_size) + "</big>")
 
         hashMap.put("NextStep", "Товары ячейки")
-
-    hashMap.put('_green_size', str(_green_size))  # ввод _green_size Time!!!
-    hashMap.put('_yellow_size', str(_yellow_size))  # ввод _yellow_size Time!!!
 
     return hashMap
 
 
 def invcv_goods_on_new_object(hashMap, _files=None, _data=None):
-    #global cells
+    global cells
     #global cellid
-    #global green_size, _yellow_size
+    global green_size, yellow_size
 
     nom_barcode = str(hashMap.get("current_object"))
+
     if nom_barcode in hashMap.get("yellow_list"):
-
-        if not hashMap.get('_green_size') == None:
-            _green_size = int(hashMap.get('_green_size'))  # прочитали _green_size Time!!!
-        else:
-            _green_size = 0
-
-        if not hashMap.get('_yellow_size') == None:
-            _yellow_size = int(hashMap.get('_yellow_size'))  # прочитали _yellow_size Time!!!
-        else:
-            _yellow_size = 0
 
         if hashMap.containsKey("stop_listener_list"):# есть ли stop_listener_list в hashMap
             stop_list = hashMap.get("stop_listener_list").split(";")
@@ -1380,21 +1352,21 @@ def invcv_goods_on_new_object(hashMap, _files=None, _data=None):
             nom_record = None
 
         if not nom_record == None:
-            hashMap.put("_nom_id", str(nom_record.get("_nom_id")))# Запись номера ID товара
+            hashMap.put("nom_id", str(nom_record.get("nom_id")))# Запись номера ID товара
             if hashMap.containsKey('write_id_list'):
                 write_list = hashMap.get('write_id_list').split(';')
-                write_list.append(str(nom_record.get('_nom_id')))
+                write_list.append(str(nom_record.get('nom_id')))
                 hashMap.put('write_id_list', ';'.join(write_list))
             else:
-                hashMap.put('write_id_list', str(nom_record.get('_nom_id')))
-            # hashMap.put("toast","_nom_id="+str(hashMap.get("_nom_id"))+" inv_id="+str(hashMap.get("inv_id")))
+                hashMap.put('write_id_list', str(nom_record.get('nom_id')))
+            # hashMap.put("toast","nom_id="+str(hashMap.get("nom_id"))+" inv_id="+str(hashMap.get("inv_id")))
             if nom_record['unique'] == 1:# это уникальный штрихкод???
 
                 hashMap.put("vibrate", "")
                 hashMap.put("beep", "5")
 
                 # это уникальный штрихкод - добавляем его в зеленый список сразу и убираем из желтого
-                _green_size = 0
+                green_size = 0
                 if hashMap.containsKey("green_list"):
                     green_list = hashMap.get("green_list").split(";")
                     green_list.append(nom_barcode)
@@ -1411,19 +1383,18 @@ def invcv_goods_on_new_object(hashMap, _files=None, _data=None):
 
                     # добавляем в базу - он посчитан
                 with db_session:
-                    #found.append(int(hashMap.get("_nom_id")))
+                    found.append(int(hashMap.get("nom_id")))
                     inventory = ui_global.SW_Inventory[int(hashMap.get("inv_id"))]
-                    r = ui_global.SW_Inventory_line(qty=1, sku=int(hashMap.get("_nom_id")),
-                                        cell=int(hashMap.get("_cellid")), inventory=inventory) # прочитали _cellid Time!!!
+                    r = ui_global.SW_Inventory_line(qty=1, sku=int(hashMap.get("nom_id")), cell=cellid, inventory=inventory)
                     commit()
 
-                _green_size += 1
+                green_size += 1
                 invdate = datetime.fromisoformat(str(hashMap.get("inv_date")))
                 hashMap.put("inv", "Инвентаризация " + str(hashMap.get("inv_name")) + " от " + invdate.strftime(
-                    "%m.%d.%Y, %H:%M:%S") + "</n> Найдено: <big>" + str(_green_size) + "</big>" + " из " + "<big>" + str(
-                    _yellow_size) + "</big>")
+                    "%m.%d.%Y, %H:%M:%S") + "</n> Найдено: <big>" + str(green_size) + "</big>" + " из " + "<big>" + str(
+                    yellow_size) + "</big>")
             else:  # неуникальный штрихкод - просим ввести кол-во
-                hashMap.put("beep", "50")# начало Error!!! invalid literal for int() with base 10 none
+                hashMap.put("beep", "50")
                 if hashMap.containsKey('write_list'):  # есть ли write_list в hashMap
                     write_list = hashMap.get("write_list").split(";")
                     write_list.append(nom_barcode)  # добавить nom_barcode в write_list
@@ -1434,43 +1405,31 @@ def invcv_goods_on_new_object(hashMap, _files=None, _data=None):
                 hashMap.put("nom", nom_record.get("info"))
                 hashMap.put("nom_barcode", nom_barcode)
                 hashMap.put("ShowDialogProcess", "Инвентаризация Active CV")
-                #hashMap.put("toast", "line 1438")# был ДО error!!!
-                hashMap.put("ShowDialog", "ДиалогВводКоличества")#error!!!
-                #hashMap.put("toast", "line 1440")# был ДО error!!!
+                hashMap.put("ShowDialog", "ДиалогВводКоличества")
                 hashMap.put("ShowDialogStyle",
                             json.dumps({"title": "Введите количество факт", "yes": "Подтвердить", "no": "Отмена"}))
-
-        #hashMap.put("toast", "line 1444")# был ДО error!!!
-        hashMap.put('_green_size', str(_green_size))  # ввод _green_size Time!!!
-        hashMap.put('_yellow_size', str(_yellow_size))  # ввод _yellow_size Time!!!
-
 
     return hashMap
 
 
 def invcv_goods_action(hashMap, _files=None, _data=None):
     #global cellid
-    #global green_size, yellow_size
+    global green_size, yellow_size
 
     # hashMap.put("toast",str(hashMap.get("event")))
 
-
-    if hashMap.get("listener") == "onResultPositive":# в диалоге ввода количества - "Ок" Error!!!
+    if hashMap.get("listener") == "onResultPositive":# в диалоге ввода количества - "Ок"
 
         hashMap.put("vibrate", "")
-        #hashMap.put("toast", "line 1471")# after error!!!
-            # hashMap.put("toast", "line 1466")# after error!!!
 
         if hashMap.containsKey('write_list'):  # есть ли write_list в hashMap
             write_list = hashMap.get("write_list").split(";")
             nom_barcode_write = str(write_list[-1])
             write_list.remove(nom_barcode_write)
             hashMap.put("write_list", ";".join(write_list))
-            #hashMap.put("toast", "line 1478") after error!!!
 
         else:
             nom_barcode_write = str(hashMap.get("current_object"))
-            hashMap.put("toast", "line 1482")
         # перекрашиваем в зеленый
 
         if hashMap.containsKey("green_list"):
@@ -1489,80 +1448,26 @@ def invcv_goods_action(hashMap, _files=None, _data=None):
         #определяем ID
         if hashMap.containsKey('write_id_list'):  # есть ли write_id_list в hashMap
             write_id_list = hashMap.get("write_id_list").split(";")
-
-            try:# есть ли _nom_id in write_id_list
-                _nom_id = str(write_id_list[-1])
-            except ValueError:
-                hashMap.put("toast", "3 Error line 1515")
-            else:
-                _nom_id = str(write_id_list[-1])
-                #hashMap.put("toast", "3 GOOD! line 1515") #after error!!!
+            _nom_id = str(write_id_list[-1])
             write_id_list.remove(_nom_id)
             hashMap.put("write_id_list", ";".join(write_id_list))
 
         else:
-            try:# есть ли _nom_id in hashMap
-                _nom_id = str(hashMap.get('_nom_id'))
-            except ValueError:
-                hashMap.put("toast", "4 Error line 1526")
-            else:
-                _nom_id = str(hashMap.get('_nom_id'))
-                hashMap.put("toast", "4 GOOD! line 1526")
-
-        #hashMap.put("toast", "line 1507")#after error!!!
+            _nom_id = str(hashMap.get('_nom_id'))
 
             # добавляем в базу
         if getfloat_if_exist(hashMap, "qty") > 0:
-            #hashMap.put("toast", str(type(getfloat_if_exist(hashMap, "qty"))) + " line 1511")# прочитали qty Time!!! после error!!!
-
-            if not hashMap.get('_green_size') == None:
-                try:
-                    _green_size = int(hashMap.get('_green_size'))  # прочитали _green_size Time!!!
-                except ValueError:
-                    hashMap.put("toast", "1 Error line 1459")
-                else:
-                    _green_size = int(hashMap.get('_green_size'))
-                    hashMap.put("toast", "1 GOOD! line 1459")
-            else:
-                _green_size = 0
-
-            if not hashMap.get('_yellow_size') == None:
-                try:
-                    _yellow_size = int(hashMap.get('_yellow_size'))  # прочитали _yellow_size Time!!!
-                except ValueError:
-                    hashMap.put("toast", "2 Error line 1470")
-                else:
-                    _yellow_size = int(hashMap.get('_yellow_size'))
-                    hashMap.put("toast", "2 GOOD! line 1470")
-            else:
-                _yellow_size = 0
-
-            try:# есть ли inv_id in hashMap
-                inv_id1 = int(hashMap.get("inv_id"))
-            except ValueError:
-                hashMap.put("toast", "5 Error line 1539")
-            else:
-                hashMap.put("toast", "5 GOOD! line 1539")
-            try:# есть ли _cellid in hashMap
-                _cellid1 = int(hashMap.get("_cellid"))
-            except ValueError:
-                hashMap.put("toast", hashMap.get("_cellid") + " 6 Error line 1545")
-            else:
-                hashMap.put("toast", "6 GOOD! line 1545")
             with db_session:
                 inventory = ui_global.SW_Inventory[int(hashMap.get("inv_id"))]
                 r = ui_global.SW_Inventory_line(qty=getfloat_if_exist(hashMap, "qty"), sku=int(_nom_id),
-                                                cell=int(hashMap.get("_cellid")), inventory=inventory)# прочитали qty Time!!!
-                #found.append(int(_nom_id))
-                _green_size += 1
+                                                cell=int(hashMap.get("_cellid")), inventory=inventory)# ввод _cellid Time!!!
+                commit()
+                found.append(int(_nom_id))
+                green_size += 1
                 invdate = datetime.fromisoformat(str(hashMap.get("inv_date")))
                 hashMap.put("inv", "Инвентаризация " + str(hashMap.get("inv_name")) + " от " + invdate.strftime(
                     "%m.%d.%Y, %H:%M:%S") + "</n> Найдено: <big>" + str(
-                    _green_size) + "</big>" + " из :" + "<big>" + str(_yellow_size) + "</big>")
-                hashMap.put('_green_size', str(_green_size))  # ввод _green_size Time!!!
-                hashMap.put('_yellow_size', str(_yellow_size))  # ввод _yellow_size Time!!!
-                commit()
-
+                    green_size) + "</big>" + " из :" + "<big>" + str(yellow_size) + "</big>")
 
     if hashMap.get("listener") == "К ЯЧЕЙКЕ":
         hashMap.put("NextStep", "Выбор ячейки")
@@ -1570,6 +1475,61 @@ def invcv_goods_action(hashMap, _files=None, _data=None):
         hashMap.put("inv",
                     "Инвентаризация " + str(hashMap.get("inv_name")) + " от " + invdate.strftime("%m.%d.%Y, %H:%M:%S"))
 
-
-
     return hashMap
+
+
+
+# -END CUSTOM HANDLERS
+
+
+
+@app.route('/set_input_direct/<method>', methods=['POST'])
+def set_input(method):
+    #func = method
+    func = method.replace('_', '', 1)
+    jdata = json.loads(request.data.decode('utf-8'))
+    f = globals()[func]
+    hashMap.d = jdata['hashmap']
+    # f()
+    # f('hashmap')
+    f(hashMap)  # new
+    jdata['hashmap'] = hashMap.export()
+    jdata['stop'] = False
+    jdata['ErrorMessage'] = ''
+    jdata['Rows'] = []
+
+    return json.dumps(jdata)
+
+
+@app.route('/post_screenshot', methods=['POST'])
+def post_screenshot():
+    d = request.data
+    return '1'
+
+
+class hashMap:
+    d = {}
+
+    def put(key, val):
+        hashMap.d[key] = val
+
+    def get(key):
+        return hashMap.d.get(key)
+
+    def remove(key):
+        if key in hashMap.d:
+            hashMap.d.pop(key)
+
+    def containsKey(key):
+        return key in hashMap.d
+
+    def export():  # It's NOT error!!!
+        ex_hashMap = []
+        for key in hashMap.d.keys():
+            ex_hashMap.append({'key': key, 'value': hashMap.d[key]})
+        return ex_hashMap
+
+
+if __name__ == '__main__':
+    init_on_start()  # new
+    app.run(host='0.0.0.0', port=2075, debug=True)
